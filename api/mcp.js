@@ -125,6 +125,34 @@ export default async function handler(req, res) {
     }
   );
 
+  // Tool 3: g8_draft_alert
+  server.registerTool(
+    "g8_draft_alert",
+    {
+      description:
+        "Drafts an alert notification for external distribution based on transport or parking data. Does not send anything. Returns the draft with draft_id for human approval.",
+      inputSchema: {
+        subject: z.string().describe("Subject line of the alert"),
+        message: z.string().describe("Alert message content"),
+        based_on: z.string().describe("The tool results the alert relies on, as text")
+      },
+      annotations: {
+        readOnlyHint: true
+      }
+    },
+    async ({ subject, message, based_on }) => {
+      const draft_id = "draft_" + Math.random().toString(36).substring(2, 10);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ draft_id, subject, message, based_on })
+          }
+        ]
+      };
+    }
+  );
+
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true

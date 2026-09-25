@@ -20,7 +20,10 @@ import {
   Wrench,
   AlertTriangle,
   Clock,
-  Radio
+  Radio,
+  Bell,
+  X,
+  ShieldAlert
 } from 'lucide-react';
 
 interface ToolCall {
@@ -34,12 +37,26 @@ interface UnavailableServer {
   reason: string;
 }
 
+interface DraftAlert {
+  draft_id: string;
+  subject: string;
+  message: string;
+  based_on: string;
+}
+
 interface AskResponse {
   answer: string;
+  drafts?: DraftAlert[];
   tool_calls: ToolCall[];
   unavailable: UnavailableServer[];
   model: string;
   answered_at: string;
+}
+
+interface DraftActionState {
+  state: 'pending' | 'sending' | 'approved' | 'discarded' | 'error';
+  statusText?: string;
+  httpStatus?: number;
 }
 
 export default function App() {
@@ -53,6 +70,7 @@ export default function App() {
   const [askLoading, setAskLoading] = useState(false);
   const [askResponse, setAskResponse] = useState<AskResponse | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
+  const [draftStatuses, setDraftStatuses] = useState<Record<string, DraftActionState>>({});
 
   // Form states for test panels
   const [carparkLat, setCarparkLat] = useState('1.2930');
@@ -83,6 +101,7 @@ export default function App() {
     setAskLoading(true);
     setAskError(null);
     setAskResponse(null);
+    setDraftStatuses({});
 
     try {
       const res = await fetch('/api/ask', {
@@ -105,6 +124,68 @@ export default function App() {
     } finally {
       setAskLoading(false);
     }
+  };
+
+  const handleApproveDraft = async (draft: DraftAlert) => {
+    setDraftStatuses((prev) => ({
+      ...prev,
+      [draft.draft_id]: { state: 'sending' }
+    }));
+
+    try {
+      const res = await fetch('/api/send-alert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          draft_id: draft.draft_id,
+          subject: draft.subject,
+          message: draft.message
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDraftStatuses((prev) => ({
+          ...prev,
+          [draft.draft_id]: {
+            state: 'error',
+            statusText: data.error || `HTTP ${res.status}`,
+            httpStatus: res.status
+          }
+        }));
+      } else {
+        const returnedStatus = data.status || res.status;
+        setDraftStatuses((prev) => ({
+          ...prev,
+          [draft.draft_id]: {
+            state: 'approved',
+            statusText: `Webhook responded with HTTP ${returnedStatus}`,
+            httpStatus: returnedStatus
+          }
+        }));
+      }
+    } catch (err: any) {
+      setDraftStatuses((prev) => ({
+        ...prev,
+        [draft.draft_id]: {
+          state: 'error',
+          statusText: err.message || 'Failed to communicate with /api/send-alert'
+        }
+      }));
+    }
+  };
+
+  const handleDiscardDraft = (draftId: string) => {
+    setDraftStatuses((prev) => ({
+      ...prev,
+      [draftId]: {
+        state: 'discarded',
+        statusText: 'Draft discarded. Alert was not sent.'
+      }
+    }));
   };
 
   const handleTestCarparks = async () => {
@@ -155,7 +236,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => copyUrl()}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition cursor-pointer"
             >
               {copiedEndpoint ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-slate-400" />}
               <span>{copiedEndpoint ? 'Copied' : 'Copy Production MCP URL'}</span>
@@ -193,7 +274,7 @@ export default function App() {
           <div className="flex gap-2 mt-6 border-b border-slate-800/80 pb-3 overflow-x-auto">
             <button
               onClick={() => setActiveTab('ask')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap cursor-pointer ${
                 activeTab === 'ask'
                   ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -204,7 +285,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('overview')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap cursor-pointer ${
                 activeTab === 'overview'
                   ? 'bg-cyan-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -214,7 +295,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('test-carparks')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap cursor-pointer ${
                 activeTab === 'test-carparks'
                   ? 'bg-cyan-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -224,7 +305,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('test-ev')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap cursor-pointer ${
                 activeTab === 'test-ev'
                   ? 'bg-cyan-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -274,7 +355,7 @@ export default function App() {
                     maxLength={500}
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
-                    placeholder="Ask about Singapore parking availability, EV chargers, or locations..."
+                    placeholder="Ask about Singapore parking availability, EV chargers, or propose an alert..."
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition resize-none"
                   />
                 </div>
@@ -285,23 +366,23 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setQuestion('Find carparks near Marina Bay (lat: 1.293, lng: 103.857) with at least 5 available lots.')}
-                    className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700/60 transition"
+                    className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700/60 transition cursor-pointer"
                   >
                     Marina Bay Carparks
                   </button>
                   <button
                     type="button"
-                    onClick={() => setQuestion('Are there any Type 2 EV charging stations near Orchard Road (lat: 1.304, lng: 103.831)?')}
-                    className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700/60 transition"
+                    onClick={() => setQuestion('Draft an alert warning that Marina Bay carparks are low on lots.')}
+                    className="text-xs bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-800/60 transition cursor-pointer"
                   >
-                    Orchard EV Chargers
+                    ⚡ Propose Alert (HITL)
                   </button>
                   <button
                     type="button"
-                    onClick={() => setQuestion('Where can I park near Raffles Place (lat: 1.284, lng: 103.851)?')}
-                    className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700/60 transition"
+                    onClick={() => setQuestion('Are there any Type 2 EV charging stations near Orchard Road (lat: 1.304, lng: 103.831)?')}
+                    className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700/60 transition cursor-pointer"
                   >
-                    Raffles Place Parking
+                    Orchard EV Chargers
                   </button>
                 </div>
 
@@ -309,7 +390,7 @@ export default function App() {
                   <button
                     type="submit"
                     disabled={askLoading || !question.trim() || question.length > 500}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm shadow-lg shadow-cyan-950 transition"
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm shadow-lg shadow-cyan-950 transition cursor-pointer"
                   >
                     {askLoading ? (
                       <>
@@ -367,6 +448,141 @@ export default function App() {
                       )}
                     </div>
                   </div>
+
+                  {/* Proposed External Actions (Drafts) */}
+                  {askResponse.drafts && askResponse.drafts.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Bell className="w-4 h-4 text-amber-400" />
+                          <h4 className="font-semibold text-white text-sm">Proposed External Alerts (Human Approval Required)</h4>
+                          <span className="text-xs bg-amber-950/80 text-amber-300 border border-amber-800/60 px-2 py-0.5 rounded-full font-mono">
+                            {askResponse.drafts.length} {askResponse.drafts.length === 1 ? 'draft' : 'drafts'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {askResponse.drafts.map((draft) => {
+                          const status = draftStatuses[draft.draft_id] || { state: 'pending' };
+                          return (
+                            <div
+                              key={draft.draft_id}
+                              className="p-5 rounded-xl border border-amber-800/40 bg-slate-950 shadow-lg space-y-4"
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-xs font-mono bg-amber-950/80 text-amber-400 border border-amber-800/60 px-2 py-0.5 rounded">
+                                    {draft.draft_id}
+                                  </span>
+                                  <span className="font-semibold text-white text-sm">
+                                    {draft.subject}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider">
+                                  Target: ALERT_WEBHOOK_URL
+                                </span>
+                              </div>
+
+                              <div>
+                                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                                  Exact text to be sent:
+                                </div>
+                                <div className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-sm text-slate-200 font-mono whitespace-pre-wrap select-all">
+                                  {draft.message}
+                                </div>
+                              </div>
+
+                              {draft.based_on && (
+                                <div className="text-xs text-slate-400 flex items-start gap-1.5">
+                                  <span className="text-slate-500 font-semibold shrink-0">Based on:</span>
+                                  <span className="italic text-slate-400">{draft.based_on}</span>
+                                </div>
+                              )}
+
+                              {/* Action buttons and status feedback */}
+                              <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+                                {status.state === 'pending' && (
+                                  <>
+                                    <div className="text-xs text-slate-400">
+                                      Human authorization required before posting to external webhook.
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDiscardDraft(draft.draft_id)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition cursor-pointer"
+                                      >
+                                        <X className="w-3.5 h-3.5 text-slate-400" />
+                                        Discard
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApproveDraft(draft)}
+                                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-950 transition cursor-pointer"
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                        Approve &amp; Send
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+
+                                {status.state === 'sending' && (
+                                  <div className="flex items-center gap-2 text-xs text-cyan-400 font-mono py-1">
+                                    <div className="w-3.5 h-3.5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+                                    <span>Posting alert to webhook (/api/send-alert)...</span>
+                                  </div>
+                                )}
+
+                                {status.state === 'approved' && (
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="flex items-center gap-2 text-xs font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1.5 rounded-lg">
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                      <span>Status: {status.statusText}</span>
+                                    </div>
+                                    <span className="text-[11px] font-mono text-emerald-500">Delivered</span>
+                                  </div>
+                                )}
+
+                                {status.state === 'discarded' && (
+                                  <div className="flex items-center gap-2 text-xs font-medium text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+                                    <X className="w-4 h-4 text-slate-500 shrink-0" />
+                                    <span>{status.statusText || 'Draft discarded. No external alert was sent.'}</span>
+                                  </div>
+                                )}
+
+                                {status.state === 'error' && (
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2">
+                                    <div className="flex items-center gap-2 text-xs text-rose-300 bg-rose-950/60 border border-rose-800/60 px-3 py-1.5 rounded-lg">
+                                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                                      <span>Status: {status.statusText}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDiscardDraft(draft.draft_id)}
+                                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition cursor-pointer"
+                                      >
+                                        Dismiss
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApproveDraft(draft)}
+                                        className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-medium transition cursor-pointer"
+                                      >
+                                        Retry
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Under it: Every tool called, in order, with its arguments */}
                   <div>
@@ -449,7 +665,7 @@ export default function App() {
         {/* Tab 1: Overview of Registered Tools */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Tool 1 */}
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 flex flex-col justify-between hover:border-slate-700 transition">
                 <div>
@@ -470,7 +686,7 @@ export default function App() {
                   </div>
 
                   <p className="text-slate-300 text-sm leading-relaxed mb-4">
-                    Returns up to 10 carpark locations with current lot availability sorted by distance from the specified coordinates. Data is read directly from Singapore's Land Transport Authority (LTA) DataMall CarParkAvailabilityv2 API. Use this tool when a user needs to find nearby parking spaces or check real-time lot availability around a location in Singapore. This tool does not provide parking fee calculations or reserved lot booking capabilities.
+                    Returns up to 10 carpark locations with current lot availability sorted by distance from the specified coordinates. Data is read directly from Singapore's Land Transport Authority (LTA) DataMall CarParkAvailabilityv2 API.
                   </p>
 
                   <div className="space-y-2 mb-4">
@@ -478,14 +694,14 @@ export default function App() {
                     <div className="bg-slate-950 p-3 rounded-lg text-xs font-mono space-y-1.5 text-slate-300 border border-slate-800/80">
                       <div><span className="text-cyan-400">lat</span>: number (required) - Latitude in SG</div>
                       <div><span className="text-cyan-400">lng</span>: number (required) - Longitude in SG</div>
-                      <div><span className="text-cyan-400">radius_m</span>: number (optional) - Search radius in meters</div>
-                      <div><span className="text-cyan-400">min_lots</span>: number (optional) - Minimum lots available</div>
+                      <div><span className="text-cyan-400">radius_m</span>: number (optional) - Search radius</div>
+                      <div><span className="text-cyan-400">min_lots</span>: number (optional) - Minimum lots</div>
                     </div>
                   </div>
                 </div>
 
                 <div className="text-xs text-slate-400 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                  <span>Upstream: CarParkAvailabilityv2 ($skip)</span>
+                  <span>Upstream: CarParkAvailabilityv2</span>
                   <span className="text-emerald-400 font-medium">Max 10 results</span>
                 </div>
               </div>
@@ -510,7 +726,7 @@ export default function App() {
                   </div>
 
                   <p className="text-slate-300 text-sm leading-relaxed mb-4">
-                    Returns up to 10 electric vehicle charging station locations sorted by distance without nested connector details. Data is read directly from Singapore's Land Transport Authority (LTA) DataMall EV Charging API. Use this tool when a user wants to find nearby EV charging stations or locate charging points compatible with a specific plug type in Singapore. This tool does not provide real-time session initiation, charging payment processing, or live connector occupancy states.
+                    Returns up to 10 electric vehicle charging station locations sorted by distance without nested connector details. Data is read directly from Singapore's Land Transport Authority (LTA) DataMall EV Charging API.
                   </p>
 
                   <div className="space-y-2 mb-4">
@@ -518,15 +734,54 @@ export default function App() {
                     <div className="bg-slate-950 p-3 rounded-lg text-xs font-mono space-y-1.5 text-slate-300 border border-slate-800/80">
                       <div><span className="text-emerald-400">lat</span>: number (required) - Latitude in SG</div>
                       <div><span className="text-emerald-400">lng</span>: number (required) - Longitude in SG</div>
-                      <div><span className="text-emerald-400">radius_m</span>: number (optional) - Search radius in meters</div>
-                      <div><span className="text-emerald-400">plug_type</span>: string (optional) - Type 2, CCS2, etc.</div>
+                      <div><span className="text-emerald-400">radius_m</span>: number (optional) - Search radius</div>
+                      <div><span className="text-emerald-400">plug_type</span>: string (optional) - Filter by plug</div>
                     </div>
                   </div>
                 </div>
 
                 <div className="text-xs text-slate-400 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                  <span>Upstream: EVCBatch (stripped nested details)</span>
+                  <span>Upstream: EVCBatch</span>
                   <span className="text-emerald-400 font-medium">Max 10 results</span>
+                </div>
+              </div>
+
+              {/* Tool 3: g8_draft_alert */}
+              <div className="bg-slate-900/60 border border-amber-800/40 rounded-xl p-6 flex flex-col justify-between hover:border-amber-700/60 transition">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-amber-950 text-amber-400 border border-amber-800/60">
+                        <Bell className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-mono font-semibold text-white">g8_draft_alert</h3>
+                        <div className="text-xs text-amber-300/80">Human-in-the-Loop</div>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <span className="text-[10px] bg-slate-800 text-slate-300 font-mono px-2 py-0.5 rounded border border-slate-700">readOnly</span>
+                      <span className="text-[10px] bg-amber-950 text-amber-300 font-mono px-2 py-0.5 rounded border border-amber-800/60">HITL</span>
+                    </div>
+                  </div>
+
+                  <p className="text-slate-300 text-sm leading-relaxed mb-4">
+                    Drafts an alert notification for external distribution based on transport findings. Sends nothing. Returns <code className="text-amber-300">{`{ draft_id, subject, message, based_on }`}</code> for human authorization via <code className="text-slate-200">/api/send-alert</code>.
+                  </p>
+
+                  <div className="space-y-2 mb-4">
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Input Parameters (Zod)</div>
+                    <div className="bg-slate-950 p-3 rounded-lg text-xs font-mono space-y-1.5 text-slate-300 border border-slate-800/80">
+                      <div><span className="text-amber-400">subject</span>: string (required) - Alert subject</div>
+                      <div><span className="text-amber-400">message</span>: string (required) - Content to send</div>
+                      <div><span className="text-amber-400">based_on</span>: string (required) - Data basis</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-400 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                  <span>Annotation: readOnlyHint</span>
+                  <span className="text-amber-400 font-medium">Sends nothing</span>
                 </div>
               </div>
             </div>
@@ -610,7 +865,7 @@ const tools = await mcpToTool({
             <button
               onClick={handleTestCarparks}
               disabled={carparkLoading}
-              className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium text-sm transition"
+              className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium text-sm transition cursor-pointer"
             >
               {carparkLoading ? 'Fetching from LTA DataMall...' : 'Run Carpark Query'}
             </button>
@@ -679,7 +934,7 @@ const tools = await mcpToTool({
             <button
               onClick={handleTestEv}
               disabled={evLoading}
-              className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-sm transition"
+              className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium text-sm transition cursor-pointer"
             >
               {evLoading ? 'Fetching from LTA DataMall...' : 'Run EV Query'}
             </button>

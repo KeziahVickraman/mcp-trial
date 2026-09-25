@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import handler from './api/mcp.js';
 import askHandler from './api/ask.js';
+import sendAlertHandler from './api/send-alert.js';
 import { carpark, ev } from './lib/lta.js';
 
 dotenv.config();
@@ -23,6 +24,9 @@ async function startServer() {
 
   // Register Gemini Agent MCP client endpoint
   app.post('/api/ask', askHandler);
+
+  // Register Human-in-the-Loop Send Alert endpoint (not an MCP tool)
+  app.post('/api/send-alert', sendAlertHandler);
 
   // Data routes
   app.get('/api/carparks', async (req, res) => {

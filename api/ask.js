@@ -139,8 +139,9 @@ export default async function handler(req, res) {
       return;
     }
 
-    // 6. Build tool_calls from automaticFunctionCallingHistory
+    // 6. Build tool_calls and drafts from automaticFunctionCallingHistory
     const tool_calls = [];
+    const drafts = [];
     const history = response.automaticFunctionCallingHistory || [];
 
     const responsesById = new Map();
@@ -150,6 +151,58 @@ export default async function handler(req, res) {
       if (Array.isArray(turn.parts)) {
         for (const part of turn.parts) {
           if (part.functionResponse) {
+            // Collect every functionResponse from g8_draft_alert into drafts array
+            if (part.functionResponse.name === "g8_draft_alert") {
+              const resp = part.functionResponse.response;
+              let draftItem = null;
+
+              if (resp) {
+                if (resp.draft_id) {
+                  draftItem = resp;
+                } else if (Array.isArray(resp.content)) {
+                  for (const c of resp.content) {
+                    if (c?.type === "text" && typeof c.text === "string") {
+                      try {
+                        const parsed = JSON.parse(c.text);
+                        if (parsed && (parsed.draft_id || parsed.subject || parsed.message)) {
+                          draftItem = parsed;
+                          break;
+                        }
+                      } catch (_) {}
+                    }
+                  }
+                } else if (resp.result && Array.isArray(resp.result.content)) {
+                  for (const c of resp.result.content) {
+                    if (c?.type === "text" && typeof c.text === "string") {
+                      try {
+                        const parsed = JSON.parse(c.text);
+                        if (parsed && (parsed.draft_id || parsed.subject || parsed.message)) {
+                          draftItem = parsed;
+                          break;
+                        }
+                      } catch (_) {}
+                    }
+                  }
+                } else if (typeof resp === "string") {
+                  try {
+                    const parsed = JSON.parse(resp);
+                    if (parsed && (parsed.draft_id || parsed.subject || parsed.message)) {
+                      draftItem = parsed;
+                    }
+                  } catch (_) {}
+                }
+              }
+
+              if (draftItem) {
+                drafts.push({
+                  draft_id: draftItem.draft_id || `draft_${drafts.length + 1}`,
+                  subject: draftItem.subject || "Alert",
+                  message: draftItem.message || "",
+                  based_on: draftItem.based_on || ""
+                });
+              }
+            }
+
             if (part.functionResponse.id) {
               responsesById.set(part.functionResponse.id, part.functionResponse);
             }
@@ -216,6 +269,7 @@ export default async function handler(req, res) {
     res.end(
       JSON.stringify({
         answer: response.text || "",
+        drafts,
         tool_calls,
         unavailable,
         model: "gemini-3.8-flash",
