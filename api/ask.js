@@ -117,22 +117,69 @@ export default async function handler(req, res) {
       config.automaticFunctionCalling = { maximumRemoteCalls: 6 };
     }
 
-    // 5. Call Gemini
+    // 5. Call Gemini with retry and fallback on temporary 503/429 spikes
     let response;
-    try {
-      response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: question,
-        config
-      });
-    } catch (err) {
-      const status = err?.status || 502;
-      const reason = err?.message?.split("\n")[0] || "Gemini model execution failed";
+    let usedModel = "gemini-3.8-flash";
+    const candidateModels = ["gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+    let lastError = null;
+
+    outerModelLoop:
+    for (const modelName of candidateModels) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          response = await ai.models.generateContent({
+            model: modelName,
+            contents: question,
+            config
+          });
+          usedModel = modelName;
+          lastError = null;
+          break outerModelLoop;
+        } catch (err) {
+          lastError = err;
+          const status =
+            err?.status ||
+            (err?.message?.includes("503")
+              ? 503
+              : err?.message?.includes("429")
+              ? 429
+              : 502);
+          const isRateLimit =
+            status === 429 ||
+            err?.message?.includes("RESOURCE_EXHAUSTED") ||
+            err?.message?.includes("Quota exceeded");
+          const isOverloaded =
+            status === 503 ||
+            err?.message?.includes("high demand") ||
+            err?.message?.includes("UNAVAILABLE");
+
+          if (isRateLimit) {
+            // Quota limit hit on this model pool: immediately try next candidate model
+            break;
+          } else if (isOverloaded) {
+            if (attempt === 1) {
+              await new Promise((r) => setTimeout(r, 800));
+              continue;
+            } else {
+              // Still overloaded: try next candidate model
+              break;
+            }
+          } else {
+            // Non-transient error, try next candidate model
+            break;
+          }
+        }
+      }
+    }
+
+    if (!response) {
+      const status = lastError?.status || 503;
+      const reason = lastError?.message?.split("\n")[0] || "Gemini model is currently experiencing high demand. Please try again in a few moments.";
       res.statusCode = 502;
       res.setHeader("Content-Type", "application/json");
       res.end(
         JSON.stringify({
-          error: `Gemini error (${status}): ${reason}`,
+          error: `Gemini service temporarily unavailable: ${reason}. Please retry your question in a few moments.`,
           status
         })
       );
@@ -272,7 +319,7 @@ export default async function handler(req, res) {
         drafts,
         tool_calls,
         unavailable,
-        model: "gemini-3.8-flash",
+        model: usedModel,
         answered_at
       })
     );
