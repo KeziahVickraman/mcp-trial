@@ -63,7 +63,7 @@ export default function App() {
   const [copiedEndpoint, setCopiedEndpoint] = useState(false);
   const [activeTab, setActiveTab] = useState<'ask' | 'overview' | 'test-carparks' | 'test-ev'>('ask');
 
-  const PROD_MCP_URL = "https://parking-s-gtest.vercel.app/api/mcp";
+  const PROD_MCP_URL = "https://mcp-trial-ebon.vercel.app/api.mcp";
 
   // Ask Panel state
   const [question, setQuestion] = useState('Find carparks near Marina Bay (lat: 1.293, lng: 103.857) with at least 5 available lots.');
@@ -259,12 +259,12 @@ export default function App() {
                 Singapore Transport &amp; Parking Tools
               </h1>
               <p className="text-slate-400 text-sm sm:text-base max-w-2xl">
-                Other teams&apos; agents will call <code className="text-cyan-300 font-mono bg-slate-800 px-1.5 py-0.5 rounded">https://parking-s-gtest.vercel.app/api/mcp</code> through the Gemini SDK&apos;s <code className="text-slate-300 font-mono">mcpToTool</code>, which speaks MCP protocol 2025-11-25 over Streamable HTTP.
+                Other teams&apos; agents will call <code className="text-cyan-300 font-mono bg-slate-800 px-1.5 py-0.5 rounded">https://mcp-trial-ebon.vercel.app/api.mcp</code> through the Gemini SDK&apos;s <code className="text-slate-300 font-mono">mcpToTool</code>, which speaks MCP protocol 2025-11-25 over Streamable HTTP.
               </p>
             </div>
             <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-xl text-xs font-mono w-full sm:w-auto">
               <div className="text-slate-500 mb-1">Production MCP Endpoint</div>
-              <div className="text-cyan-400 font-semibold truncate select-all">https://parking-s-gtest.vercel.app/api/mcp</div>
+              <div className="text-cyan-400 font-semibold truncate select-all">https://mcp-trial-ebon.vercel.app/api.mcp</div>
               <div className="text-slate-500 mt-2 mb-1">Protocol</div>
               <div className="text-emerald-400 font-semibold">2025-11-25 (Streamable HTTP)</div>
             </div>
@@ -793,7 +793,7 @@ export default function App() {
                 Integration for AI Agents
               </h3>
               <p className="text-slate-400 text-sm mb-4">
-                Other teams&apos; agents will call <code className="text-cyan-300 font-mono">https://parking-s-gtest.vercel.app/api/mcp</code> through the Gemini SDK&apos;s <code className="text-slate-300 font-mono">mcpToTool</code> over Streamable HTTP:
+                Other teams&apos; agents will call <code className="text-cyan-300 font-mono">https://mcp-trial-ebon.vercel.app/api.mcp</code> through the Gemini SDK&apos;s <code className="text-slate-300 font-mono">mcpToTool</code> over Streamable HTTP:
               </p>
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto">
                 <pre>{`// Using Gemini SDK's mcpToTool:
@@ -802,7 +802,7 @@ import { mcpToTool } from "@google/genai";
 const tools = await mcpToTool({
   transport: {
     type: "streamableHttp",
-    url: "https://parking-s-gtest.vercel.app/api/mcp",
+    url: "https://mcp-trial-ebon.vercel.app/api.mcp",
   }
 });
 
