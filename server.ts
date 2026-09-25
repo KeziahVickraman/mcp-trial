@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import handler from './api/mcp.js';
+import askHandler from './api/ask.js';
 import { carpark, ev } from './lib/lta.js';
 
 dotenv.config();
@@ -19,6 +20,9 @@ async function startServer() {
   // Register MCP Streamable HTTP handler for POST and GET
   app.post('/api/mcp', handler);
   app.get('/api/mcp', handler);
+
+  // Register Gemini Agent MCP client endpoint
+  app.post('/api/ask', askHandler);
 
   // Data routes
   app.get('/api/carparks', async (req, res) => {

@@ -4,13 +4,55 @@
  */
 
 import React, { useState } from 'react';
-import { Server, Database, Zap, Compass, CheckCircle2, AlertCircle, Copy, Check, Terminal, ExternalLink } from 'lucide-react';
+import {
+  Server,
+  Zap,
+  Compass,
+  CheckCircle2,
+  AlertCircle,
+  Copy,
+  Check,
+  Terminal,
+  MessageSquare,
+  Bot,
+  Sparkles,
+  Send,
+  Wrench,
+  AlertTriangle,
+  Clock,
+  Radio
+} from 'lucide-react';
+
+interface ToolCall {
+  name: string;
+  args: Record<string, any>;
+  failed: boolean;
+}
+
+interface UnavailableServer {
+  address: string;
+  reason: string;
+}
+
+interface AskResponse {
+  answer: string;
+  tool_calls: ToolCall[];
+  unavailable: UnavailableServer[];
+  model: string;
+  answered_at: string;
+}
 
 export default function App() {
   const [copiedEndpoint, setCopiedEndpoint] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'test-carparks' | 'test-ev'>('overview');
+  const [activeTab, setActiveTab] = useState<'ask' | 'overview' | 'test-carparks' | 'test-ev'>('ask');
 
   const PROD_MCP_URL = "https://parking-s-gtest.vercel.app/api/mcp";
+
+  // Ask Panel state
+  const [question, setQuestion] = useState('Find carparks near Marina Bay (lat: 1.293, lng: 103.857) with at least 5 available lots.');
+  const [askLoading, setAskLoading] = useState(false);
+  const [askResponse, setAskResponse] = useState<AskResponse | null>(null);
+  const [askError, setAskError] = useState<string | null>(null);
 
   // Form states for test panels
   const [carparkLat, setCarparkLat] = useState('1.2930');
@@ -32,6 +74,37 @@ export default function App() {
     navigator.clipboard.writeText(url);
     setCopiedEndpoint(true);
     setTimeout(() => setCopiedEndpoint(false), 2000);
+  };
+
+  const handleAskAgent = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!question.trim()) return;
+
+    setAskLoading(true);
+    setAskError(null);
+    setAskResponse(null);
+
+    try {
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ question: question.trim() })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || `Request failed with status ${res.status}`);
+      }
+
+      setAskResponse(data);
+    } catch (err: any) {
+      setAskError(err.message || 'An error occurred while asking the agent.');
+    } finally {
+      setAskLoading(false);
+    }
   };
 
   const handleTestCarparks = async () => {
@@ -117,10 +190,21 @@ export default function App() {
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex gap-2 mt-6 border-b border-slate-800/80 pb-3">
+          <div className="flex gap-2 mt-6 border-b border-slate-800/80 pb-3 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab('ask')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+                activeTab === 'ask'
+                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Bot className="w-4 h-4" />
+              Ask Agent (/api/ask)
+            </button>
             <button
               onClick={() => setActiveTab('overview')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 activeTab === 'overview'
                   ? 'bg-cyan-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -130,7 +214,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('test-carparks')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 activeTab === 'test-carparks'
                   ? 'bg-cyan-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -140,7 +224,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('test-ev')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 activeTab === 'test-ev'
                   ? 'bg-cyan-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -150,6 +234,217 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* Tab 0: Ask Agent Panel */}
+        {activeTab === 'ask' && (
+          <div className="space-y-6">
+            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 sm:p-8">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-blue-950/80 border border-blue-800/60 text-cyan-400">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Ask Gemini Transport Agent</h2>
+                    <p className="text-xs text-slate-400">
+                      Powered by <span className="font-mono text-cyan-300">gemini-3.8-flash</span> connected dynamically to MCP servers in <span className="font-mono text-slate-300">MCP_SERVERS</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+                  <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                  <span>Streamable HTTP Client</span>
+                </div>
+              </div>
+
+              {/* Question Form */}
+              <form onSubmit={handleAskAgent} className="space-y-4">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label htmlFor="agent-question" className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                      Visitor Question
+                    </label>
+                    <span className={`text-xs font-mono ${question.length > 500 ? 'text-rose-400 font-bold' : 'text-slate-500'}`}>
+                      {question.length} / 500 characters
+                    </span>
+                  </div>
+                  <textarea
+                    id="agent-question"
+                    rows={3}
+                    maxLength={500}
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    placeholder="Ask about Singapore parking availability, EV chargers, or locations..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition resize-none"
+                  />
+                </div>
+
+                {/* Example query chips */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-400">Suggestions:</span>
+                  <button
+                    type="button"
+                    onClick={() => setQuestion('Find carparks near Marina Bay (lat: 1.293, lng: 103.857) with at least 5 available lots.')}
+                    className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700/60 transition"
+                  >
+                    Marina Bay Carparks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuestion('Are there any Type 2 EV charging stations near Orchard Road (lat: 1.304, lng: 103.831)?')}
+                    className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700/60 transition"
+                  >
+                    Orchard EV Chargers
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuestion('Where can I park near Raffles Place (lat: 1.284, lng: 103.851)?')}
+                    className="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700/60 transition"
+                  >
+                    Raffles Place Parking
+                  </button>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={askLoading || !question.trim() || question.length > 500}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm shadow-lg shadow-cyan-950 transition"
+                  >
+                    {askLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Querying MCP Agent...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>Ask Agent</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+
+              {/* Error display */}
+              {askError && (
+                <div className="mt-6 p-4 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-200 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-sm">Agent Error</div>
+                    <div className="text-xs text-rose-300 mt-1">{askError}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Answer & Details */}
+              {askResponse && (
+                <div className="mt-8 space-y-6 pt-6 border-t border-slate-800">
+                  {/* The Answer */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-cyan-400" />
+                        <h3 className="font-semibold text-white text-base">Agent Answer</h3>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                        <span className="font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-cyan-300">
+                          {askResponse.model}
+                        </span>
+                        {askResponse.answered_at && (
+                          <span className="flex items-center gap-1 font-mono text-[11px] text-slate-500">
+                            <Clock className="w-3 h-3" />
+                            {new Date(askResponse.answered_at).toLocaleTimeString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-slate-950 border border-slate-800/90 rounded-xl p-5 text-slate-200 text-sm leading-relaxed shadow-inner">
+                      {askResponse.answer ? (
+                        <div className="whitespace-pre-wrap">{askResponse.answer}</div>
+                      ) : (
+                        <div className="text-slate-500 italic">No text answer returned.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Under it: Every tool called, in order, with its arguments */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Wrench className="w-4 h-4 text-blue-400" />
+                        <h4 className="font-semibold text-white text-sm">Tools Called by Agent</h4>
+                        <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono">
+                          {askResponse.tool_calls.length}
+                        </span>
+                      </div>
+                    </div>
+
+                    {askResponse.tool_calls.length > 0 ? (
+                      <div className="space-y-3">
+                        {askResponse.tool_calls.map((call, idx) => (
+                          <div
+                            key={idx}
+                            className={`p-4 rounded-xl border text-xs font-mono transition ${
+                              call.failed
+                                ? 'bg-rose-950/20 border-rose-800/50 text-rose-200'
+                                : 'bg-slate-950 border-slate-800/80 text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-slate-500 font-bold">{idx + 1}.</span>
+                                <span className="font-semibold text-white">{call.name}</span>
+                              </div>
+                              {call.failed ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800 font-medium">
+                                  <AlertTriangle className="w-3 h-3" /> Failed
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-medium">
+                                  <Check className="w-3 h-3" /> Succeeded
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-slate-400 text-[11px] mb-1">Arguments:</div>
+                            <pre className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 text-[11px] overflow-x-auto text-slate-300">
+                              {JSON.stringify(call.args, null, 2)}
+                            </pre>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-slate-950/50 border border-slate-800/60 p-4 rounded-xl text-xs text-slate-500 italic">
+                        No external tools were invoked for this query.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Under it: Any unavailable servers in grey */}
+                  {askResponse.unavailable && askResponse.unavailable.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        Unavailable MCP Servers
+                      </div>
+                      <div className="space-y-2">
+                        {askResponse.unavailable.map((srv, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-slate-900/30 border border-slate-800/70 p-3 rounded-lg text-xs font-mono text-slate-500 flex flex-col sm:flex-row sm:items-center justify-between gap-1"
+                          >
+                            <span className="truncate text-slate-400">{srv.address}</span>
+                            <span className="text-slate-500 text-[11px] italic shrink-0">Reason: {srv.reason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Tab 1: Overview of Registered Tools */}
         {activeTab === 'overview' && (
