@@ -1,0 +1,6 @@
+{
+  "name": "Singapore Transport & Parking MCP Server",
+  "description": "Model Context Protocol (MCP) server providing real-time Singapore LTA carpark availability and EV charging stations via Streamable HTTP.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
