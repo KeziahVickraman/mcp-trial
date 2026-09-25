@@ -133,6 +133,26 @@ export default function App() {
   const [askError, setAskError] = useState<string | null>(null);
   const [draftStatuses, setDraftStatuses] = useState<Record<string, DraftActionState>>({});
 
+  // Live MCP Connection Test State
+  const [mcpTestLoading, setMcpTestLoading] = useState(false);
+  const [mcpConnectionData, setMcpConnectionData] = useState<any>(null);
+  const [mcpTestError, setMcpTestError] = useState<string | null>(null);
+
+  const testMcpConnection = async () => {
+    setMcpTestLoading(true);
+    setMcpTestError(null);
+    try {
+      const res = await fetch('/api.mcp');
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      const data = await res.json();
+      setMcpConnectionData(data);
+    } catch (err: any) {
+      setMcpTestError(err.message || 'Connection test failed');
+    } finally {
+      setMcpTestLoading(false);
+    }
+  };
+
   // Auto-fetch carparks on mount
   useEffect(() => {
     fetchLiveCarparks(lat, lng, radiusM, minLots);
@@ -1312,8 +1332,75 @@ export default function App() {
 
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <span className="font-semibold text-slate-800 select-all">{PROD_MCP_URL}</span>
-                <span className="text-slate-500 text-[11px]">Protocol: 2025-11-25 (Streamable HTTP)</span>
+                <span className="text-slate-500 text-[11px]">Protocol: 2024-11-05 (Streamable HTTP / JSON-RPC 2.0)</span>
               </div>
+            </div>
+
+            {/* Live Connection Test & Handshake Panel */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700">
+                    <Radio className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">Live MCP Connection Message &amp; Handshake</h3>
+                    <p className="text-xs text-slate-500">
+                      Verify that the MCP Streamable HTTP endpoint accepts connection handshakes (GET / POST) and responds with server metadata.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={testMcpConnection}
+                  disabled={mcpTestLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition cursor-pointer shrink-0"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${mcpTestLoading ? 'animate-spin' : ''}`} />
+                  <span>{mcpTestLoading ? 'Testing Connection...' : 'Test Connection Handshake'}</span>
+                </button>
+              </div>
+
+              {mcpTestError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{mcpTestError}</span>
+                </div>
+              )}
+
+              {mcpConnectionData ? (
+                <div className="space-y-3">
+                  <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <div>
+                        <div className="font-bold text-emerald-950 text-sm">
+                          {mcpConnectionData.message || 'Server Connected'}
+                        </div>
+                        <div className="text-xs text-emerald-700">
+                          Status: <span className="font-semibold uppercase tracking-wider">{mcpConnectionData.status}</span> · Server: {mcpConnectionData.server?.name || 'g8-server'} v{mcpConnectionData.server?.version || '1.0.0'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-mono text-emerald-800 bg-white/80 px-2.5 py-1 rounded border border-emerald-200">
+                      HTTP 200 OK
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-semibold text-slate-700 mb-1.5">Raw MCP Connection Payload:</div>
+                    <pre className="bg-slate-900 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-60 leading-relaxed">
+                      {JSON.stringify(mcpConnectionData, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs text-slate-500">
+                  <span>Click <strong>&quot;Test Connection Handshake&quot;</strong> to inspect the live connection message returned by <code>/api.mcp</code></span>
+                  <span className="font-mono text-[11px] text-slate-400 hidden sm:inline">GET /api.mcp</span>
+                </div>
+              )}
             </div>
 
             {/* Registered Tools Grid */}

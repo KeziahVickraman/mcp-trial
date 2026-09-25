@@ -18,11 +18,9 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Register MCP Streamable HTTP handler for POST and GET
-  app.post('/api/mcp', handler);
-  app.get('/api/mcp', handler);
-  app.post('/api.mcp', handler);
-  app.get('/api.mcp', handler);
+  // Register MCP Streamable HTTP handler for all methods (GET, POST, OPTIONS, HEAD)
+  app.all('/api/mcp', handler);
+  app.all('/api.mcp', handler);
 
   // Register Gemini Agent MCP client endpoint
   app.post('/api/ask', askHandler);
